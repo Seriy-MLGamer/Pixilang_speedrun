@@ -1,39 +1,67 @@
-fn quick_sort($container, $first, $last)
+fn quick_sort($container, $first, $count)
 {
-	$pivot=$container[$last-1]//($container[$first]+$container[$last-1])/2
-	$left=$first
-	$right=$last
-	$changed=0
-	while $left!=$right
+	$stack=new(2, 1, INT)
+	$stack[0]=$first
+	$stack[1]=$first+$count
+	$stack_size=1
+	while $stack_size
 	{
-		if $container[$left]>=$pivot
+		$new_stack=new(2, 1, INT)
+		$new_stack_size=0
+		for ($a=0; $a!=$stack_size; $a+1)
 		{
-			$right-1
-			if $container[$left]!=$container[$right]
+			$left=$stack[0, $a]
+			$right=$stack[1, $a]
+			$pivot=($container[$left]+$container[$right-1])/2
+			$changed=0
+			while $left!=$right
 			{
-				$temp=$container[$left]
-				$container[$left]=$container[$right]
-				$container[$right]=$temp
-				$changed=1
+				if $container[$left]>=$pivot
+				{
+					$right-1
+					if $container[$left]!=$container[$right]
+					{
+						$temp=$container[$left]
+						$container[$left]=$container[$right]
+						$container[$right]=$temp
+						$changed=1
+					}
+				}
+				else
+				{
+					$left+1
+				}
+			}
+			if $changed||$right!=$stack[0, $a]
+			{
+				if $left>$stack[0, $a]+1
+				{
+					resize($new_stack, 2, $new_stack_size+1)
+					$new_stack[0, $new_stack_size]=$stack[0, $a]
+					$new_stack[1, $new_stack_size]=$left
+					$new_stack_size+1
+				}
+				if $stack[1, $a]>$left+1
+				{
+					resize($new_stack, 2, $new_stack_size+1)
+					$new_stack[0, $new_stack_size]=$left
+					$new_stack[1, $new_stack_size]=$stack[1, $a]
+					$new_stack_size+1
+				}
 			}
 		}
-		else
-		{
-			$left+1
-		}
+		remove($stack)
+		$stack=$new_stack
+		$stack_size=$new_stack_size
 	}
-	if $changed||$right!=$first
-	{
-		quick_sort($container, $first, $left)
-		quick_sort($container, $left, $last)
-	}
+	remove($stack)
 }
 
 cont=new(1024, 1, INT)
 logf("[")
 a=0 while 1
 {
-	cont[a]=a//rand()*64 div 32768
+	cont[a]=rand()*64 div 32768
 	logf("%i", cont[a])
 	if a!=get_size(cont)-1
 	{
