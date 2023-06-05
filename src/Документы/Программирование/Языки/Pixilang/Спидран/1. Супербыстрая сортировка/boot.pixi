@@ -1,92 +1,45 @@
-fn quick_sort($container, $first, $count)
-{
-	$stack=new(2, 1, INT)
-	$stack[0]=$first
-	$stack[1]=$first+$count
-	$stack_size=1
-	while $stack_size
-	{
-		$new_stack=new(2, 1, INT)
-		$new_stack_size=0
-		for ($a=0; $a!=$stack_size; $a+1)
-		{
-			$left=$stack[0, $a]
-			$right=$stack[1, $a]
-			$pivot=($container[$left]+$container[$right-1])/2
-			$changed=0
-			while $left!=$right
-			{
-				if $container[$left]>=$pivot
-				{
-					$right-1
-					if $container[$left]!=$container[$right]
-					{
-						$temp=$container[$left]
-						$container[$left]=$container[$right]
-						$container[$right]=$temp
-						$changed=1
-					}
-				}
-				else
-				{
-					$left+1
-				}
-			}
-			if $changed||$right!=$stack[0, $a]
-			{
-				if $left>$stack[0, $a]+1
-				{
-					resize($new_stack, 2, $new_stack_size+1)
-					$new_stack[0, $new_stack_size]=$stack[0, $a]
-					$new_stack[1, $new_stack_size]=$left
-					$new_stack_size+1
-				}
-				if $stack[1, $a]>$left+1
-				{
-					resize($new_stack, 2, $new_stack_size+1)
-					$new_stack[0, $new_stack_size]=$left
-					$new_stack[1, $new_stack_size]=$stack[1, $a]
-					$new_stack_size+1
-				}
-			}
-		}
-		remove($stack)
-		$stack=$new_stack
-		$stack_size=$new_stack_size
-	}
-	remove($stack)
-}
+/*
+(C) 2023 Серый MLGamer. Все свободы предоставлены.
+Видео в Дзене: <https://dzen.ru/seriy_mlgamer>
+Музыка на SoundCloud: <https://soundcloud.com/seriy_mlgamer>
+Видео на YouTube: <https://www.youtube.com/@Seriy_MLGamer>
+Код на GitHub: <https://github.com/Seriy-MLGamer>
+Страница ВКонтакте: <https://vkontakte.ru/seriy_mlgamer>
+Материальная поддержка в DonationAlerts: <https://www.donationalerts.com/r/seriy_mlgamer>
+Электронная почта: <Seriy-MLGamer@yandex.ru>
 
-cont=new(1024, 1, INT)
-logf("[")
-a=0 while 1
+Этот файл - часть Супербыстрой сортировки.
+Супербыстрая сортировка - свободная программа: вы можете перераспространять её и/или изменять её на условиях Стандартной общественной лицензии GNU в том виде, в каком она была опубликована Фондом свободного программного обеспечения; либо версии 3 лицензии, либо (по вашему выбору) любой более поздней версии.
+Супербыстрая сортировка распространяется в надежде, что она будет полезна, но БЕЗО ВСЯКИХ ГАРАНТИЙ; даже без неявной гарантии ТОВАРНОГО ВИДА или ПРИГОДНОСТИ ДЛЯ ОПРЕДЕЛЁННЫХ ЦЕЛЕЙ. Подробнее см. в Стандартной общественной лицензии GNU.
+Вы должны были получить копию Стандартной общественной лицензии GNU вместе с этой программой. Если это не так, см. <https://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @file boot.pixi
+ * Программа, демонстрирующая и тестирующая работу алгоритма быстрой сортировки.
+ */
+
+include "include/quick sort.pixi" //Подключаем код алгоритма быстрой сортировки.
+
+//Создаём тестовый контейнер.
+cont=new(1024, 1, INT) /**Тестовый контейнер.*/
+//Заполняем его значениями.
+for (a=0; a!=get_size(cont); a+1)
 {
-	cont[a]=rand()*64 div 32768
-	logf("%i", cont[a])
-	if a!=get_size(cont)-1
+	//Если 0, заполняем случайными значениями, а если 1 - упорядоченными (для проверки эффективности и правильности алгоритма).
+	if 0
 	{
-		logf(", ")
-		a+1
+		cont[a]=255-a*256/get_size(cont)
 	}
 	else
 	{
-		logf("]\n")
-		break
+		cont[a]=rand()*256 div 32768
 	}
 }
-quick_sort(cont, 0, get_size(cont))
-logf("[")
-a=0 while 1
-{
-	logf("%i", cont[a])
-	if a!=get_size(cont)-1
-	{
-		logf(", ")
-		a+1
-	}
-	else
-	{
-		logf("]\n")
-		break
-	}
-}
+render_container=cont //Передаём контейнер для отрисовки OpenGL-колбэком render().
+frame(1000) //Показываем контейнер до сортировки.
+quick_sort(cont) //Сортируем!
+render_stack=-1 //"Стека" больше нет, так как сортировка завершилась, поэтому этот параметр мы больше не передаём.
+render_save=1 //Сохранение изображения контейнера производится в OpenGL-колбэке, так что передаём туда такой параметр.
+frame(5000) //Показываем контейнер после сортировки и одновременно сохраняем его изображение в файл "Отсортированный массив.png".
+set_gl_callback(-1) //Завершаем программу, всё за собой убираем.

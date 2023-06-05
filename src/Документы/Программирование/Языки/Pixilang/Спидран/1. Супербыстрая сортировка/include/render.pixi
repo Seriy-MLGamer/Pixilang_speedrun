@@ -1,0 +1,126 @@
+/*
+(C) 2023 Серый MLGamer. Все свободы предоставлены.
+Видео в Дзене: <https://dzen.ru/seriy_mlgamer>
+Музыка на SoundCloud: <https://soundcloud.com/seriy_mlgamer>
+Видео на YouTube: <https://www.youtube.com/@Seriy_MLGamer>
+Код на GitHub: <https://github.com/Seriy-MLGamer>
+Страница ВКонтакте: <https://vkontakte.ru/seriy_mlgamer>
+Материальная поддержка в DonationAlerts: <https://www.donationalerts.com/r/seriy_mlgamer>
+Электронная почта: <Seriy-MLGamer@yandex.ru>
+
+Этот файл - часть Супербыстрой сортировки.
+Супербыстрая сортировка - свободная программа: вы можете перераспространять её и/или изменять её на условиях Стандартной общественной лицензии GNU в том виде, в каком она была опубликована Фондом свободного программного обеспечения; либо версии 3 лицензии, либо (по вашему выбору) любой более поздней версии.
+Супербыстрая сортировка распространяется в надежде, что она будет полезна, но БЕЗО ВСЯКИХ ГАРАНТИЙ; даже без неявной гарантии ТОВАРНОГО ВИДА или ПРИГОДНОСТИ ДЛЯ ОПРЕДЕЛЁННЫХ ЦЕЛЕЙ. Подробнее см. в Стандартной общественной лицензии GNU.
+Вы должны были получить копию Стандартной общественной лицензии GNU вместе с этой программой. Если это не так, см. <https://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @file render.pixi
+ * В этом файле содержится код алгоритма отрисовки контейнера для визуализации алгоритма быстрой сортировки.
+ */
+
+height=256 /**Высота экрана относительно значений элементов контейнера. Элементы с этим значением будут доставать верхнего края окна Pixilang.*/
+
+//Далее задаётся радужная палитра.
+palette_size=256
+palette=new(palette_size)
+a=0
+while a!=palette_size div 4
+{
+	palette[a]=get_color(255, a*256*4 div palette_size, 0)
+	a+1
+}
+while a!=palette_size div 2
+{
+	palette[a]=get_color(256*2-a*256*4 div palette_size, 255, 0)
+	a+1
+}
+while a!=3*palette_size div 4
+{
+	palette[a]=get_color(0, 255, a*256*4 div palette_size-256*2)
+	a+1
+}
+while a!=palette_size
+{
+	palette[a]=get_color(0, 256*4-a*256*4 div palette_size, 255)
+	a+1
+}
+//Инициализируем аргументы и запускаем OpenGL-колбэк render().
+render_container=-1
+render_stack=-1
+render_save=0
+set_gl_callback(render) //Здесь должен быть ещё один аргумент, но он не нужен.
+
+/**
+ * OpenGL-колбэк, в котором с аппаратным ускорением визуализируется процесс сортировки.
+ */
+fn render() //Здесь должен быть аргумент, но он не нужен.
+{
+	//Это и подобное - это что-то типа кэширования. Я сохраняю результат функции, свойство контейнера или его ячейку в переменную для ускоренного доступа без повторных вызовов функции и поисков значения в контейнере.
+	$container_size=get_size(render_container)
+	$stack_size=get_ysize(render_stack)
+	set_screen(GL_SCREEN) //Переход в режим отрисовки с помощью OpenGL.
+	clear()
+	//Отмечаем границы подмассивов, если колбэку передан "стек".
+	for ($a=0; $a!=$stack_size; $a+1)
+	{
+		//Левая граница.
+		line(
+			(render_stack[0, $a]+.5)*WINDOW_XSIZE div $container_size-WINDOW_XSIZE div 2,
+			-WINDOW_YSIZE div 2,
+			(render_stack[0, $a]+.5)*WINDOW_XSIZE div $container_size-WINDOW_XSIZE div 2,
+			WINDOW_YSIZE div 2-1,
+			RED
+		)
+		//Правая граница.
+		line(
+			(render_stack[1, $a]-.5)*WINDOW_XSIZE div $container_size-WINDOW_XSIZE div 2,
+			-WINDOW_YSIZE div 2,
+			(render_stack[1, $a]-.5)*WINDOW_XSIZE div $container_size-WINDOW_XSIZE div 2,
+			WINDOW_YSIZE div 2-1,
+			GREEN
+		)
+	}
+	//Отрисовываем элементы массива.
+	for ($a=0; $a!=$container_size; $a+1)
+	{
+		fbox(
+			$a*WINDOW_XSIZE div $container_size-WINDOW_XSIZE div 2,
+			WINDOW_YSIZE div 2-render_container[$a]*WINDOW_YSIZE div height,
+			($a+1)*WINDOW_XSIZE div $container_size-$a*WINDOW_XSIZE div $container_size,
+			render_container[$a]*WINDOW_YSIZE div height,
+			palette[render_container[$a]*palette_size div height]
+		)
+	}
+	//Отображаем отладочную информацию о "стеке", если он передан колбэку.
+	if render_stack>=0
+	{
+		sprintf(0, "Stack size: %i", $stack_size) //Записываю строку в обычный экран, потому что он не нужон. Я отрисовываю через OpenGL.
+		print(0, -WINDOW_XSIZE div 2, -WINDOW_YSIZE div 2, WHITE, TOP|LEFT) //Отображаем.
+	}
+	//Завершение отрисовки кадра. Получившийся кадр отобразится на экран через вызов frame().
+	//Ну, и теперь отрисовка будет производиться обычным способом в экран 0. Только отображаться с помощью frame() будет экран OpenGL, а не экран 0.
+	set_screen(0)
+	//Если колбэк должен сохранить изображение контейнера, он сделает это.
+	if render_save
+	{
+		resize(0, $container_size, height) //Делаем размер оптимальным.
+		clean(0) //Так, теперь нужно очищать экран от отладочной информацию о "стеке".
+		//Отрисовываем элементы массива.
+		for ($a=0; $a!=$container_size; $a+1)
+		{
+			//Решил это делать вот такой функцией, потому что у неё нет проблем с центром экрана и нечётными размерами. Здесь всё отсчитывается от верхнего левого края.
+			op_cn(
+				OP_COPY,
+				0,
+				palette[render_container[$a]*palette_size div height],
+				$a,
+				height-render_container[$a],
+				1,
+				render_container[$a]
+			)
+		}
+		save(0, "Отсортированный массив.png", FORMAT_PNG) //Сохраняем!
+		render_save=0 //Завершаем сохранение.
+	}
+}
