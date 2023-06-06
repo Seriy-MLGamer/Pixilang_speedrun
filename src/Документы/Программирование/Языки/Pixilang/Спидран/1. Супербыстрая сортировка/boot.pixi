@@ -1,6 +1,6 @@
 fn quick_sort($container, $first, $last)
 {
-	$pivot=($container[$first]+$container[$last-1])/2
+	$pivot=$container[$last-1]//($container[$first]+$container[$last-1])/2
 	$left=$first
 	$right=$last
 	$changed=0
@@ -29,11 +29,11 @@ fn quick_sort($container, $first, $last)
 	}
 }
 
-cont=new(64, 1, INT)
+cont=new(1024, 1, INT)
 logf("[")
 a=0 while 1
 {
-	cont[a]=rand()*64 div 32768
+	cont[a]=a//rand()*64 div 32768
 	logf("%i", cont[a])
 	if a!=get_size(cont)-1
 	{
