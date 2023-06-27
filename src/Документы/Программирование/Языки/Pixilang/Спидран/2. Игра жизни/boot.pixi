@@ -12,6 +12,13 @@ offsets[0, 6]=0  offsets[1, 6]=-1
 offsets[0, 7]=1  offsets[1, 7]=-1
 
 field=new(width, height)
+for (y=0; y!=height; y+1)
+{
+	for (x=0; x!=width; x+1)
+	{
+		field[x, y]=(rand()&1)*#FFFFFF
+	}
+}
 buffer=clone(field)
 while 1
 {
