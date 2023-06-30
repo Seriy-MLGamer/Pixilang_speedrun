@@ -1,7 +1,49 @@
-width=256
-height=128
+/*
+(C) 2023 Серый MLGamer. Все свободы предоставлены.
+Видео в Дзене: <https://dzen.ru/seriy_mlgamer>
+Музыка на SoundCloud: <https://soundcloud.com/seriy_mlgamer>
+Видео на YouTube: <https://www.youtube.com/@Seriy_MLGamer>
+Код на GitHub: <https://github.com/Seriy-MLGamer>
+Страница ВКонтакте: <https://vkontakte.ru/seriy_mlgamer>
+Материальная поддержка в DonationAlerts: <https://www.donationalerts.com/r/seriy_mlgamer>
+Электронная почта: <Seriy-MLGamer@yandex.ru>
 
-offsets=new(2, 8, INT8)
+Этот файл - часть Игры жизни.
+Игра жизни - свободная программа: вы можете перераспространять её и/или изменять её на условиях Стандартной общественной лицензии GNU в том виде, в каком она была опубликована Фондом свободного программного обеспечения; либо версии 3 лицензии, либо (по вашему выбору) любой более поздней версии.
+Игра жизни распространяется в надежде, что она будет полезна, но БЕЗО ВСЯКИХ ГАРАНТИЙ; даже без неявной гарантии ТОВАРНОГО ВИДА или ПРИГОДНОСТИ ДЛЯ ОПРЕДЕЛЁННЫХ ЦЕЛЕЙ. Подробнее см. в Стандартной общественной лицензии GNU.
+Вы должны были получить копию Стандартной общественной лицензии GNU вместе с этой программой. Если это не так, см. <https://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @file boot.pixi
+ * Игра "Жизнь" Джона Конвея с визуальным эффектом случайных цветов.
+ * Клетки обрабатываются исходя из их цветов, что позволяет запустить жизнь на картинке.
+ * Подробнее об игре "Жизнь": https://ru.wikipedia.org/wiki/Игра_«Жизнь»
+ */
+
+include "include/Threads_queues.pixi" //Вспомогательный код для организации правильной многопоточной обработки клеток игры "Жизнь".
+
+//Размеры игрового поля.
+width=256 /**Ширина игрового поля.*/
+height=128 /**Высота игрового поля.*/
+
+threads=8 /**Количество потоков.*/
+
+
+//Способы заполнения игрового поля.
+CREATE_RANDOM=     0 /**Заполнить поле случайным образом.*/
+CREATE_GLIDER=     1 /**Создать один планер.*/
+CREATE_R_PENTOMINO=2 /**Создать R-пентамино - фигуру-долгожитель.*/
+CREATE_PICTURE=    3 /**Использовать в качестве поля картинку, выбранную вами в файловом диалоге.*/
+//Задачи, которые могут выполнять потоки.
+TASK_UPDATE= 1 /**Обновить игровое поле.*/
+TASK_DESTROY=2 /**Уничтожить поток.*/
+//0 - простой потока.
+
+size=width*height /**Площадь игрового поля, заранее вычисленная для быстрого доступа.*/
+//Вхардкодил относительные координаты соседних клеток. Зато быстро, по идее.
+offsets=new(2, 8, INT8) /**Относительные координаты соседних клеток.*/
+//offsets[0, n] - координата x; offsets[1, n] - координата y.
 offsets[0, 0]=1  offsets[1, 0]=0
 offsets[0, 1]=1  offsets[1, 1]=1
 offsets[0, 2]=0  offsets[1, 2]=1
@@ -11,18 +53,166 @@ offsets[0, 5]=-1 offsets[1, 5]=-1
 offsets[0, 6]=0  offsets[1, 6]=-1
 offsets[0, 7]=1  offsets[1, 7]=-1
 
-field=new(width, height)
-for (y=0; y!=height; y+1)
+//Заполняем игровое поле.
+create=CREATE_RANDOM /**Присвойте этой переменной значение CREATE_*, соответствующее способу заполнения игрового поля.*/
+if create==CREATE_RANDOM //Заполнение поля случайным образом.
 {
-	for (x=0; x!=width; x+1)
+	//Создаём игровое поле.
+	field=new(width, height) /**Игровое поле.*/
+	for (a=0; a!=size; a+1)
 	{
-		field[x, y]=(rand()&1)*#FFFFFF
+		field[a]=get_color(rand()&0xFF, rand()&0xFF, rand()&0xFF) //Заполняем поле случайными цветами.
 	}
 }
-buffer=clone(field)
+else{if create==CREATE_GLIDER //Создание одного планера.
+{
+	//Создаём игровое поле.
+	field=new(width, height) /**Игровое поле.*/
+	clean(field) //Очистка.
+	//Расположение живых клеток, заданное ниже, является планером.
+	field[width div 2, height div 2-1]=WHITE
+	field[width div 2+1, height div 2]=WHITE
+	field[width div 2-1, height div 2+1]=WHITE
+	field[width div 2, height div 2+1]=WHITE
+	field[width div 2+1, height div 2+1]=WHITE
+}
+else{if create==CREATE_R_PENTAMINO
+{
+	//Создаём игровое поле.
+	field=new(width, height) /**Игровое поле.*/
+	clean(field) //Очистка.
+	//Расположение живых клеток, заданное ниже, является R-пентамино.
+	field[width div 2, height div 2-1]=WHITE
+	field[width div 2, height div 2]=WHITE
+	field[width div 2+1, height div 2]=WHITE
+	field[width div 2-1, height div 2+1]=WHITE
+	field[width div 2, height div 2+1]=WHITE
+}
+else{if create==CREATE_PICTURE //Использование картинки в качестве поля.
+{
+	//Создаём игровое поле. Загружаем картинку, выбранную в создаваемом данной командой файловом диалоге.
+	field=load(file_dialog("Выберите изображение.", "png/jpg/jpeg/gif", "Игра жизни")) /**Игровое поле.*/
+	//Изменяем размер картинки до размеров игрового поля. Мало ли, какого размера будет картинка. Большую картинку даже много потоков будут медленно обрабатывать. Ну, просто потому что это Pixilang, а не C.
+	resize(field, width, height, -1, RESIZE_COLOR_INTERP2)
+}}}}
+buffer=clone(field) /**Буфер для правильной работы игры.*/
+//Создаём экземпляр класса Threads_queues для создаваемых ниже потоков.
+threads_queues=Threads_queues_new(threads) /**Очереди задач для потоков.*/
+//Создаём потоки.
+for (a=0; a!=threads; a+1)
+{
+	thread_create(update, a /*Это передаётся номер потока.*/, THREAD_FLAG_AUTO_DESTROY)
+}
+set_gl_callback(render) //Запускаем OpenGL-колбэк render().
+//Главный цикл игры.
 while 1
 {
-	clean()
+	frame() //Отрисовка поля с помощью OpenGL-колбэка.
+	//Обработка событий, чтобы можно было в любой момент выйти из игры.
+	while get_event()
+	{
+		if EVT[EVT_TYPE]==EVT_QUIT
+		{
+			//Такая вот процедура выхода. За собой всё убираем.
+			Threads_queues_push(threads_queues, TASK_DESTROY)
+			while 1
+			{
+				if Threads_queues_are_complete(threads_queues)
+				{
+					Threads_queues_remove(threads_queues)
+					set_gl_callback(-1)
+					halt
+				}
+				sleep(1)
+			}
+		}
+	}
+}
+
+/**
+ * Функция потока, обновляющая игровое поле.
+ * @param $unused ненужное.
+ * @param $part номер потока и по совместительству часть поля, которую поток должен обрабатывать.
+ */
+fn update($unused, $part)
+{
+	while 1
+	{
+		//Смотрим, какая есть задача для потока.
+		$task=Threads_queues_get(threads_queues, $part) /**Задача потока.*/
+		if $task==TASK_UPDATE //Обновление игрового поля.
+		{
+			//Чтобы потокам доставались более равномерные части, поле представляется как одномерный массив и делится в соответствии с его размером (площадью поля).
+			$end=($part+1)*size div threads
+			for ($a=$part*size div threads; $a!=$end; $a+1)
+			{
+				//А вот так номер ячейки одномерного массива преобразуется в координаты двумерного.
+				$x=$a%width
+				$y=$a div width
+				$neighbors=0 /**Количество живых соседних клеток вокруг выбранной клетки.*/
+				//Проверяем все 8 соседних клеток.
+				for ($b=0; $b!=8; $b+1)
+				{
+					//Вот такие вот формулы координат для контейнера field обеспечивают замкнутость игрового поля самого на себя. То есть, если вышел за границу поля, оказался возле противоположной.
+					$color=field[($x+width+offsets[0, $b])%width, ($y+height+offsets[1, $b])%height]
+					//Так определён цвет живой клетки.
+					if get_red($color)>=0x80&&get_green($color)>=0x80&&get_blue($color)>=0x80
+					{
+						$neighbors+1
+					}
+				}
+				/*
+				Правила игры "Жизнь".
+				1. Если вокруг мёртвой клетки есть 3 живых соседних клетки, они её делают живой.
+				2. Если вокруг живой клетки находится меньше 2 живых соседних клеток, она умирает от одиночества.
+				3. Если вокруг живой клетки находится больше 3 живых соседних клеток, она умирает от перенаселённости.
+				4. В других случаях клетка остаётся как есть.
+				*/
+				if $neighbors==3 //Правило 1.
+				{
+					$color=field[$a]
+					//Так определён цвет мёртвой клетки.
+					if get_red($color)<0x80||get_green($color)<0x80||get_blue($color)<0x80
+					{
+						//Клетка становится живой.
+						buffer[$a]=get_color(0x80+(rand()&0x7F), 0x80+(rand()&0x7F), 0x80+(rand()&0x7F))
+					}
+				}
+				else{if $neighbors<2||$neighbors>3 //Правила 2 и 3.
+				{
+					$color=field[$a]
+					//Так определён цвет живой клетки.
+					if get_red($color)>=0x80&&get_green($color)>=0x80&&get_blue($color)>=0x80
+					{
+						//Клетка становится мёртвой.
+						buffer[$a]=get_color(rand()&0x7F, rand()&0x7F, rand()&0x7F)
+					}
+				}}
+				//Правило 4.
+			}
+			//Поток обновил свою часть поля. Задача выполнена.
+			Threads_queues_complete(threads_queues, $part)
+		}
+		else{if $task==TASK_DESTROY //Уничтожение потока.
+		{
+			//Выходим из функции. Далее поток самоуничтожится. Задача выполнена.
+			Threads_queues_complete(threads_queues, $part)
+			ret
+		}
+		else //Простой.
+		{
+			sleep(1) //Нет, сложный.
+		}}
+	}
+}
+/**
+ * OpenGL-колбэк, в котором с аппаратным ускорением отрисовывается Игра жизни.
+ */
+fn render()
+{
+	set_screen(GL_SCREEN) //Переход в режим отрисовки с помощью OpenGL.
+	clear()
+	//Выводим на экран игровое поле с масштабированием по размеру экрана.
 	if width/height<WINDOW_XSIZE/WINDOW_YSIZE
 	{
 		pixi(field, 0, 0, WHITE, WINDOW_YSIZE/height, WINDOW_YSIZE/height)
@@ -30,26 +220,14 @@ while 1
 	else
 	{
 		pixi(field, 0, 0, WHITE, WINDOW_XSIZE/width, WINDOW_XSIZE/width)
-	}
-	frame()
-	for (y=0; y!=height; y+1)
+	}	
+	set_screen(0) //Завершение отрисовки кадра. Получившийся кадр отобразится на экран через вызов frame().
+	Threads_queues_push(threads_queues, TASK_UPDATE) //Обновляем игровое поле.
+	//Ждём, когда все потоки обновят игровое поле.
+	while !Threads_queues_are_complete(threads_queues)
 	{
-		for (x=0; x!=width; x+1)
-		{
-			neighbors=0
-			for (a=0; a!=8; a+1)
-			{
-				neighbors+field[(x+width+offsets[0, a])%width, (y+height+offsets[1, a])%height]==WHITE
-			}
-			if neighbors==3
-			{
-				buffer[x, y]=WHITE
-			}
-			else{if neighbors<2||neighbors>3
-			{
-				buffer[x, y]=BLACK
-			}}
-		}
+		sleep(1)
 	}
-	copy(field, buffer)
+	copy(field, buffer) //Завершаем обновление игрового поля копированием в него того, что получилось в буфере.
+	update_gl_data(field) //Обновляем какие-то данные OpenGL, чтобы отобразилось обновлённое поле.
 }

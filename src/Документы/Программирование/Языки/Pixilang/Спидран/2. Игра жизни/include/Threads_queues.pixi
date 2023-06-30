@@ -1,0 +1,129 @@
+/*
+(C) 2023 Серый MLGamer. Все свободы предоставлены.
+Видео в Дзене: <https://dzen.ru/seriy_mlgamer>
+Музыка на SoundCloud: <https://soundcloud.com/seriy_mlgamer>
+Видео на YouTube: <https://www.youtube.com/@Seriy_MLGamer>
+Код на GitHub: <https://github.com/Seriy-MLGamer>
+Страница ВКонтакте: <https://vkontakte.ru/seriy_mlgamer>
+Материальная поддержка в DonationAlerts: <https://www.donationalerts.com/r/seriy_mlgamer>
+Электронная почта: <Seriy-MLGamer@yandex.ru>
+
+Этот файл - часть Игры жизни.
+Игра жизни - свободная программа: вы можете перераспространять её и/или изменять её на условиях Стандартной общественной лицензии GNU в том виде, в каком она была опубликована Фондом свободного программного обеспечения; либо версии 3 лицензии, либо (по вашему выбору) любой более поздней версии.
+Игра жизни распространяется в надежде, что она будет полезна, но БЕЗО ВСЯКИХ ГАРАНТИЙ; даже без неявной гарантии ТОВАРНОГО ВИДА или ПРИГОДНОСТИ ДЛЯ ОПРЕДЕЛЁННЫХ ЦЕЛЕЙ. Подробнее см. в Стандартной общественной лицензии GNU.
+Вы должны были получить копию Стандартной общественной лицензии GNU вместе с этой программой. Если это не так, см. <https://www.gnu.org/licenses/>.
+*/
+
+/**
+ * @file Threads_queues.pixi
+ * class Threads_queues;
+ * Массив очередей задач для каждого потока. Предназначен для многопоточной обработки в условиях ограниченного количества потоков, которые нельзя часто создавать и уничтожать. Увеличивает её скорость.
+ */
+
+/**
+ * class Threads_queues;
+ * Массив очередей задач для каждого потока. Предназначен для многопоточной обработки в условиях ограниченного количества потоков, которые нельзя часто создавать и уничтожать. Увеличивает её скорость.
+ * @param $threads количество потоков.
+ * @return экземпляр класса Threads_queues.
+ */
+fn Threads_queues_new($threads)
+{
+	$self=new($threads, 3, INT) //3 параметра на поток.
+
+	for ($a=0; $a!=$threads; $a+1)
+	{
+		$self[$a]=new(1, 1, INT) //Очередь задач.
+		$self[$a, 1]=0 //Количество задач.
+		$self[$a, 2]=mutex_create() //Создаём mutex для правильной работы с многопоточностью.
+	}
+
+	ret($self)
+}
+/**
+ * Добавить задачу в очереди всех потоков.
+ * @param $self экземпляр класса Threads_queues или его наследника.
+ * @param $task идентификатор задачи либо контейнера с информацией о задаче.
+ */
+fn Threads_queues_push($self, $task)
+{
+	$threads=get_xsize($self)
+	for ($a=0; $a!=$threads; $a+1)
+	{
+		//Данные ниже - критическая зона. Они должны обрабатываться за раз только одним потоком во избежание их непредвиденного изменения или неправильного чтения другим потоком. Поэтому здесь производится блокировка mutex'а. Первый поток, заблокировавший mutex, будет обрабатывать эти данные, последующие - ожидать разблокировки mutex'а первым потоком, чтобы затем самим его заблокировать.
+		mutex_lock($self[$a, 2])
+		$queue=$self[$a]
+		//Вот так вот задача добавляется в начало очереди.
+		if $self[$a, 1]!=get_size($queue)
+		{
+			copy($queue, $queue, 1, 0, $self[$a, 1])
+			$queue[0]=$task
+		}
+		else
+		{
+			//Я вас уверяю, так будет в среднем быстрее.
+			$new_queue=new($self[$a, 1]+1, 1, INT)
+			copy($new_queue, $queue, 1, 0, $self[$a, 1])
+			$self[$a]=$new_queue
+			$new_queue[0]=$task
+			remove($queue)
+		}
+		$self[$a, 1]+1 //Задача добавлена в очередь потока.
+		mutex_unlock($self[$a, 2]) //Выход из критической зоны - разблокировка mutex'а.
+	}
+}
+/**
+ * Узнать текущую задачу потока.
+ * @param $self экземпляр класса Threads_queues или его наследника.
+ * @param $thread номер потока.
+ * @return текущую задачу потока.
+ */
+fn Threads_queues_get($self, $thread)
+{
+	mutex_lock($self[$thread, 2])
+	$result=$self[$thread][$self[$thread, 1]-1]
+	mutex_unlock($self[$thread, 2])
+	ret($result)
+}
+/**
+ * Сделать текущую задачу потока выполненной и убрать её из очереди.
+ * @param $self экземпляр класса Threads_queues или его наследника.
+ * @param $thread номер потока.
+ */
+fn Threads_queues_complete($self, $thread)
+{
+	mutex_lock($self[$thread, 2])
+	$self[$thread, 1]-1 //Да, вот так просто.
+	mutex_unlock($self[$thread, 2])
+}
+/**
+ * Проверить, что на всех потоках выполнены все задачи.
+ * @param $self экземпляр класса Threads_queues или его наследника.
+ * @return 1, если на всех потоках выполнены все задачи; 0 в противном случае.
+ */
+fn Threads_queues_are_complete($self)
+{
+	$result=0
+	$threads=get_xsize($self)
+	for ($a=0; $a!=$threads; $a+1)
+	{
+		mutex_lock($self[$a, 2])
+		$result||$self[$a, 1]
+		mutex_unlock($self[$a, 2])
+	}
+	ret(!$result)
+}
+/**
+ * Удаляет экземпляр класса Threads_queues.
+ * @param $self экземпляр класса Threads_queues.
+ */
+fn Threads_queues_remove($self)
+{
+	$threads=get_xsize($self)
+	for ($a=0; $a!=$threads; $a+1)
+	{
+		remove($self[$a])
+		mutex_destroy($self[$a, 2])
+	}
+
+	remove($self)
+}
